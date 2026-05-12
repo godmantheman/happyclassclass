@@ -1,0 +1,143 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and role information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["student", "teacher", "admin"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "Post": {
+      "title": "Post",
+      "description": "Post in boards (Notice, Free, Classroom)",
+      "type": "object",
+      "properties": {
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "type": { "type": "string", "enum": ["notice", "free", "classroom"] },
+        "attachmentUrl": { "type": "string" },
+        "attachmentName": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["authorId", "title", "type", "createdAt"]
+    },
+    "Comment": {
+      "title": "Comment",
+      "description": "Comment on a post",
+      "type": "object",
+      "properties": {
+        "postId": { "type": "string" },
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "content": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["postId", "authorId", "content", "createdAt"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "Messages in the class chat",
+      "type": "object",
+      "properties": {
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "text": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["authorId", "text", "createdAt"]
+    },
+    "File": {
+      "title": "File",
+      "description": "Shared files in library",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "url": { "type": "string" },
+        "type": { "type": "string" },
+        "uploadedBy": { "type": "string" },
+        "uploaderName": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "url", "uploadedBy", "createdAt"]
+    },
+    "SystemLog": {
+      "title": "SystemLog",
+      "description": "Audit logs for admin",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "action": { "type": "string" },
+        "details": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["action", "timestamp"]
+    },
+    "Schedule": {
+      "title": "Schedule",
+      "description": "Daily class timetable",
+      "type": "object",
+      "properties": {
+        "period": { "type": "string" },
+        "subject": { "type": "string" },
+        "time": { "type": "string" },
+        "order": { "type": "number" }
+      },
+      "required": ["period", "subject", "time", "order"]
+    },
+    "Meal": {
+      "title": "Meal",
+      "description": "Daily lunch menu",
+      "type": "object",
+      "properties": {
+        "menu": { "type": "array", "items": { "type": "string" } },
+        "calories": { "type": "string" },
+        "date": { "type": "string", "format": "date" }
+      },
+      "required": ["menu", "date"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/posts/{postId}": {
+      "schema": "Post",
+      "description": "Board posts"
+    },
+    "/posts/{postId}/comments/{commentId}": {
+      "schema": "Comment",
+      "description": "Comments on posts"
+    },
+    "/chat_messages/{messageId}": {
+      "schema": "ChatMessage",
+      "description": "Class chat messages"
+    },
+    "/files/{fileId}": {
+      "schema": "File",
+      "description": "Shared files"
+    },
+    "/system_logs/{logId}": {
+      "schema": "SystemLog",
+      "description": "Audit logs"
+    },
+    "/schedule/{periodId}": {
+      "schema": "Schedule",
+      "description": "Class timetable"
+    },
+    "/meals/{mealId}": {
+      "schema": "Meal",
+      "description": "Daily meal menu"
+    }
+  }
+}

@@ -1,0 +1,172 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Phase 3: Primitive Definitions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function hasRole(role) {
+      return isSignedIn() && getUserData().role == role;
+    }
+
+    function isAdmin() {
+      return hasRole('admin');
+    }
+
+    function isTeacher() {
+      return hasRole('teacher') || isAdmin();
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Validation Blueprints
+    function isValidUser(data) {
+      return data.uid is string && data.uid == request.auth.uid &&
+             data.email is string && data.email.size() <= 256 &&
+             data.displayName is string && data.displayName.size() <= 100 &&
+             data.role in ['student', 'teacher', 'admin'] &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidPost(data) {
+      return data.authorId is string && data.authorId == request.auth.uid &&
+             data.authorName is string && data.authorName.size() <= 100 &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+             data.content is string && data.content.size() <= 5000 &&
+             data.type in ['notice', 'free', 'classroom'] &&
+             (data.attachmentUrl == null || data.attachmentUrl is string) &&
+             (data.attachmentName == null || data.attachmentName is string) &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp;
+    }
+
+    function isValidComment(data) {
+      return data.postId is string &&
+             data.authorId is string && data.authorId == request.auth.uid &&
+             data.authorName is string && data.authorName.size() <= 100 &&
+             data.content is string && data.content.size() > 0 && data.content.size() <= 1000 &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidChatMessage(data) {
+      return data.authorId is string && data.authorId == request.auth.uid &&
+             data.authorName is string && data.authorName.size() <= 100 &&
+             data.text is string && data.text.size() > 0 && data.text.size() <= 500 &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidFile(data) {
+       return data.name is string && data.name.size() <= 256 &&
+              data.url is string &&
+              data.type is string &&
+              data.uploadedBy is string && data.uploadedBy == request.auth.uid &&
+              data.uploaderName is string && data.uploaderName.size() <= 100 &&
+              data.createdAt is timestamp;
+    }
+
+    function isValidSystemLog(data) {
+      return data.action is string && data.timestamp is timestamp;
+    }
+
+    function isValidSchedule(data) {
+      return data.period is string && data.subject is string && data.time is string && data.order is number;
+    }
+
+    function isValidMeal(data) {
+      return data.menu is list && data.date is string;
+    }
+
+    // Collection Rules
+
+    match /schedule/{periodId} {
+      allow read: if isSignedIn();
+      allow write: if isTeacher();
+    }
+
+    match /meals/{mealId} {
+      allow read: if isSignedIn();
+      allow write: if isTeacher();
+    }
+
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      allow list: if isAdmin();
+      allow create: if isSignedIn() && isValidUser(incoming()) && (
+        // Prevent self-elevating roles: must be student unless first user or admin
+        incoming().role == 'student' || isAdmin()
+      );
+      allow update: if (isOwner(userId) && isValidUser(incoming()) && incoming().role == existing().role) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /posts/{postId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidPost(incoming()) && (
+        (incoming().type == 'free') || 
+        (incoming().type in ['notice', 'classroom'] && isTeacher())
+      );
+      allow update: if (isValidPost(incoming()) && (
+        (isOwner(existing().authorId) && incoming().type == existing().type && (
+          (existing().type == 'free') || (existing().type in ['notice', 'classroom'] && isTeacher())
+        ) && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'content', 'attachmentUrl', 'attachmentName', 'updatedAt'])) ||
+        isAdmin()
+      ));
+      allow delete: if isOwner(existing().authorId) || isAdmin();
+
+      match /comments/{commentId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn() && isValidComment(incoming());
+        allow update: if isOwner(existing().authorId) && isValidComment(incoming()) && 
+                      incoming().diff(existing()).affectedKeys().hasOnly(['content']);
+        allow delete: if isOwner(existing().authorId) || isAdmin();
+      }
+    }
+
+    match /chat_messages/{messageId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidChatMessage(incoming());
+      allow update: if false;
+      allow delete: if isOwner(existing().authorId) || isAdmin();
+    }
+
+    match /files/{fileId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidFile(incoming());
+      allow update: if false; 
+      allow delete: if isOwner(existing().uploadedBy) || isAdmin();
+    }
+
+    match /system_logs/{logId} {
+      allow read, write: if isAdmin();
+      allow create: if isSignedIn() && isValidSystemLog(incoming());
+    }
+  }
+}
